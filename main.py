@@ -17,7 +17,7 @@ irc_client = None
 nodes = dict()
 last_seen = dict()
 
-NODE_TTL = timedelta(minutes=7)
+NODE_TTL = timedelta(minutes=5)
 
 
 class ListHandler(tornado.web.RequestHandler):
