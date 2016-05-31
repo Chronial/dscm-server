@@ -73,7 +73,9 @@ class MyPlugin:
     def publish_nodes(self, nodes):
         now = datetime.utcnow()
         for node in nodes:
-            if (node.steamid in self.last_seen and
+
+            if (isinstance(node, DSNode) and
+                    node.steamid in self.last_seen and
                     (now - self.last_seen[node.steamid]) < PUBLISH_TTL):
                 continue
             clean_name = node.name.replace('|', '').replace(',', '')
