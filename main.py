@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import tornado.ioloop
 import tornado.web
 from tornado.platform.asyncio import AsyncIOMainLoop
-from darksouls import DSCMNode
+from darksouls import DSCMNode, DSNode
 
 import irc
 
