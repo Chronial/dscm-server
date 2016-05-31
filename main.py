@@ -1,10 +1,12 @@
 import asyncio
-import json
 import logging
+import gzip
 from datetime import datetime, timedelta
+from io import BytesIO
 
 import tornado.ioloop
 import tornado.web
+import ujson
 from tornado.platform.asyncio import AsyncIOMainLoop
 from darksouls import DSCMNode, DSNode
 
@@ -20,17 +22,41 @@ last_seen = dict()
 NODE_TTL = timedelta(minutes=5)
 
 
+list_cache = None
+LIST_TTL = timedelta(seconds=10)
+
+
 class ListHandler(tornado.web.RequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def get(self):
-        out = list(nodes.values())
-        out.extend(n for n in irc_client.nodes.values() if n.steamid not in nodes)
-        self.write({'nodes': out})
+        global list_cache
+        if "gzip" not in self.request.headers.get("Accept-Encoding", ""):
+            self.set_status(400)
+            return
+
+        if list_cache and (datetime.utcnow() - list_cache[1]) < LIST_TTL:
+            gzip_json = list_cache[0]
+        else:
+            out = list(nodes.values())
+            out.extend(n for n in irc_client.nodes.values() if n.steamid not in nodes)
+            json = ujson.dumps({'nodes': list(x._asdict() for x in out)},
+                               ensure_ascii=False)
+            gzip_value = BytesIO()
+            with gzip.GzipFile(mode="w", fileobj=gzip_value, compresslevel=6) as f:
+                f.write(json.encode('utf-8'))
+            gzip_json = gzip_value.getvalue()
+            list_cache = (gzip_json, datetime.utcnow())
+        self.set_header("Content-Encoding", "gzip")
+        self.set_header('Content-Type', 'application/json')
+        self.write(gzip_json)
 
 
 class StoreHandler(tornado.web.RequestHandler):
     def post(self):
         now = datetime.utcnow()
-        data = json.loads(self.request.body.decode('utf-8'))
+        data = ujson.loads(self.request.body.decode('utf-8'))
         self_node = DSCMNode(**data['self'])
         nodes[self_node.steamid] = self_node
         last_seen[self_node.steamid] = now
@@ -43,13 +69,10 @@ class StoreHandler(tornado.web.RequestHandler):
 
 
 def make_app():
-    settings = {
-        'compress_response': True,
-    }
     return tornado.web.Application([
         (r"/list", ListHandler),
         (r"/store", StoreHandler),
-    ], **settings)
+    ])
 
 
 @asyncio.coroutine

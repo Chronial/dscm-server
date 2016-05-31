@@ -13,4 +13,5 @@ irc3==0.9.1
 pip-tools==1.6.5
 six==1.10.0               # via pip-tools
 tornado==4.3
+ujson==1.35
 venusian==1.0             # via irc3

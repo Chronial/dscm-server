@@ -1,3 +1,4 @@
 irc3
 pip-tools
 tornado
+ujson
