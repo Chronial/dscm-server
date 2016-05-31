@@ -1,8 +1,13 @@
+import logging
+from datetime import datetime, timedelta
+from unittest import mock
+
 import irc3
 import irc3.rfc
-from datetime import datetime, timedelta
 
 from darksouls import DSNode, DSCMNode
+
+logger = logging.getLogger(__name__)
 
 NODE_TTL = timedelta(minutes=5)
 PUBLISH_TTL = timedelta(minutes=3)
@@ -72,11 +77,12 @@ class MyPlugin:
     @irc3.extend
     def publish_nodes(self, nodes):
         now = datetime.utcnow()
+        already_seen = 0
         for node in nodes:
-
             if (isinstance(node, DSNode) and
                     node.steamid in self.last_seen and
                     (now - self.last_seen[node.steamid]) < PUBLISH_TTL):
+                already_seen += 1
                 continue
             clean_name = node.name.replace('|', '').replace(',', '')
             info = [clean_name, node.steamid, node.sl, node.phantom_type,
@@ -85,6 +91,7 @@ class MyPlugin:
                 info.extend([node.covenant, node.indictments])
             msg = "REPORT|" + ",".join(str(x) for x in info)
             self.bot.privmsg(CHANNEL, msg)
+        logger.debug('The network already knew about {} nodes'.format(already_seen))
 
 
 class Client:
@@ -96,7 +103,8 @@ class Client:
             includes=['irc3.plugins.core',
                       __name__],
         )
-        self.bot = irc3.IrcBot.from_config(config)
+        with mock.patch('logging.config.dictConfig'):
+            self.bot = irc3.IrcBot.from_config(config)
         self.bot.run(forever=False)
 
     @property
