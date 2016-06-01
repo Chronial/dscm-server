@@ -63,7 +63,7 @@ class StoreHandler(tornado.web.RequestHandler):
         for node_dict in data['nodes']:
             node = DSNode(**node_dict)
             if isinstance(nodes.get(node.steamid), DSCMNode):
-                node = nodes[node.steamid]._replace(node._asdict())
+                node = nodes[node.steamid]._replace(**node._asdict())
             nodes[node.steamid] = node
             last_seen[node.steamid] = now
 
