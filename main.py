@@ -89,7 +89,7 @@ def expire_nodes():
 @asyncio.coroutine
 def publish_in_irc():
     while True:
-        yield from asyncio.sleep(110)
+        yield from asyncio.sleep(60*3 + 10)
         logger.info('Publishing {} nodes to IRC'.format(len(nodes)))
         irc_client.publish_nodes(nodes.values())
 
