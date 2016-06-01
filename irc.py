@@ -99,6 +99,7 @@ class Client:
         config = dict(
             nick='server-bot', autojoins=[CHANNEL],
             host='dscm.wulf2k.ca', port=8123, ssl=False,
+            flood_rate=4,  # increase output speed
             loop=event_loop,
             includes=['irc3.plugins.core',
                       __name__],
