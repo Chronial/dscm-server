@@ -5,6 +5,7 @@ from unittest import mock
 import irc3
 import irc3.rfc
 
+import lsettings
 from darksouls import DSNode, DSCMNode
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,8 @@ class MyPlugin:
 
     def server_ready(self):
         """triggered after the server sent the MOTD (require core plugin)"""
+        self.bot.send_line("OPER {} {}".format(
+            lsettings.IRC_OPER_USER, lsettings.IRC_OPER_PASS))
 
     def connection_lost(self):
         """triggered when connection is lost"""
