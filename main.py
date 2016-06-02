@@ -52,6 +52,27 @@ class ListHandler(tornado.web.RequestHandler):
         self.write(gzip_json)
 
 
+class StatusHandler(tornado.web.RequestHandler):
+    def get(self):
+        data = {
+            'http': nodes,
+            'irc': irc_client.nodes,
+        }
+        out = dict()
+        for name, nodedict in data.items():
+            out[name] = {
+                'total': len(nodedict),
+                'DSCM': sum(1 for n in nodedict.values() if isinstance(n, DSCMNode)),
+                'DS': sum(1 for n in nodedict.values() if isinstance(n, DSNode)),
+            }
+        out['total'] = dict()
+        out['total']['total'] = len(set(nodes.keys()) | set(irc_client.nodes.keys()))
+        out['total']['DSCM'] = out['http']['DSCM'] + out['irc']['DSCM']
+        out['total']['DS'] = out['total']['total'] - out['total']['DSCM']
+        self.set_header('Content-Type', 'text/plain')
+        self.write(ujson.dumps(out, indent=2))
+
+
 class StoreHandler(tornado.web.RequestHandler):
     def post(self):
         now = datetime.utcnow()
@@ -71,6 +92,7 @@ def make_app():
     return tornado.web.Application([
         (r"/list", ListHandler),
         (r"/store", StoreHandler),
+        (r"/status", StatusHandler),
     ])
 
 
