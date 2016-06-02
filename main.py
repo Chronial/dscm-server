@@ -19,7 +19,10 @@ irc_client = None
 nodes = dict()
 last_seen = dict()
 
-NODE_TTL = timedelta(minutes=5)
+DSCM_NODE_TTL = timedelta(minutes=2)
+# Remember non-DSCM nodes for longer as they might not have quit but just lost
+# all connections to DSCM nodes
+DS_NODE_TTL = timedelta(minutes=10)
 
 
 list_cache = None
@@ -102,7 +105,8 @@ def expire_nodes():
         yield from asyncio.sleep(10)
         now = datetime.utcnow()
         for steamid, last in list(last_seen.items()):
-            if now - last > NODE_TTL:
+            ttl = DSCM_NODE_TTL if isinstance(nodes[steamid], DSCMNode) else DS_NODE_TTL
+            if now - last > ttl:
                 del nodes[steamid]
                 del last_seen[steamid]
 
