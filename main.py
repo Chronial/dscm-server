@@ -27,9 +27,6 @@ LIST_TTL = timedelta(seconds=10)
 
 
 class ListHandler(tornado.web.RequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def get(self):
         global list_cache
         if "gzip" not in self.request.headers.get("Accept-Encoding", ""):
@@ -39,9 +36,11 @@ class ListHandler(tornado.web.RequestHandler):
         if list_cache and (datetime.utcnow() - list_cache[1]) < LIST_TTL:
             gzip_json = list_cache[0]
         else:
-            out = list(nodes.values())
-            out.extend(n for n in irc_client.nodes.values() if n.steamid not in nodes)
-            json = ujson.dumps({'nodes': list(x._asdict() for x in out)},
+            out = dict(nodes)
+            for node in irc_client.nodes.values():
+                if isinstance(node, DSCMNode) or node.steamid not in nodes:
+                    out[node.steamid] = node
+            json = ujson.dumps({'nodes': list(x._asdict() for x in out.values())},
                                ensure_ascii=False)
             gzip_value = BytesIO()
             with gzip.GzipFile(mode="w", fileobj=gzip_value, compresslevel=6) as f:
