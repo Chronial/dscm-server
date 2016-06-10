@@ -125,7 +125,7 @@ def main():
     AsyncIOMainLoop().install()
     event_loop = asyncio.get_event_loop()
     app = make_app()
-    app.listen(8811)
+    app.listen(8811, no_keep_alive=True)
     irc_client = irc.Client(event_loop)
     asyncio.async(expire_nodes())
     asyncio.async(publish_in_irc())
