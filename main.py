@@ -4,6 +4,7 @@ import gzip
 from datetime import datetime, timedelta
 from io import BytesIO
 
+import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 import ujson
@@ -52,6 +53,7 @@ class ListHandler(tornado.web.RequestHandler):
             list_cache = (gzip_json, datetime.utcnow())
         self.set_header("Content-Encoding", "gzip")
         self.set_header('Content-Type', 'application/json')
+        self.set_header('Connection', 'close')
         self.write(gzip_json)
 
 
@@ -89,6 +91,7 @@ class StoreHandler(tornado.web.RequestHandler):
                 node = nodes[node.steamid]._replace(**node._asdict())
             nodes[node.steamid] = node
             last_seen[node.steamid] = now
+        self.set_header('Connection', 'close')
 
 
 def make_app():
@@ -125,7 +128,8 @@ def main():
     AsyncIOMainLoop().install()
     event_loop = asyncio.get_event_loop()
     app = make_app()
-    app.listen(8811, no_keep_alive=True)
+    http_server = tornado.httpserver.HTTPServer(app, no_keep_alive=True)
+    http_server.listen(8811)
     irc_client = irc.Client(event_loop)
     asyncio.async(expire_nodes())
     asyncio.async(publish_in_irc())
