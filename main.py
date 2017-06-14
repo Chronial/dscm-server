@@ -11,11 +11,7 @@ import ujson
 from tornado.platform.asyncio import AsyncIOMainLoop
 from darksouls import DSCMNode, DSNode
 
-import irc
-
 logger = logging.getLogger(__name__)
-
-irc_client = None
 
 nodes = dict()
 last_seen = dict()
@@ -40,11 +36,7 @@ class ListHandler(tornado.web.RequestHandler):
         if list_cache and (datetime.utcnow() - list_cache[1]) < LIST_TTL:
             gzip_json = list_cache[0]
         else:
-            out = dict(nodes)
-            for node in irc_client.nodes.values():
-                if isinstance(node, DSCMNode) or node.steamid not in nodes:
-                    out[node.steamid] = node
-            json = ujson.dumps({'nodes': list(x._asdict() for x in out.values())},
+            json = ujson.dumps({'nodes': [x._asdict() for x in nodes.values()]},
                                ensure_ascii=False)
             gzip_value = BytesIO()
             with gzip.GzipFile(mode="w", fileobj=gzip_value, compresslevel=6) as f:
@@ -59,22 +51,12 @@ class ListHandler(tornado.web.RequestHandler):
 
 class StatusHandler(tornado.web.RequestHandler):
     def get(self):
-        data = {
-            'http': nodes,
-            'irc': irc_client.nodes,
+        out = {
+            'total': len(nodes),
+            'DSCM': sum(1 for n in nodes.values() if isinstance(n, DSCMNode)),
+            'DS': sum(1 for n in nodes.values() if isinstance(n, DSNode)),
         }
-        out = dict()
-        for name, nodedict in data.items():
-            out[name] = {
-                'total': len(nodedict),
-                'DSCM': sum(1 for n in nodedict.values() if isinstance(n, DSCMNode)),
-                'DS': sum(1 for n in nodedict.values() if isinstance(n, DSNode)),
-            }
-        out['total'] = dict()
-        out['total']['total'] = len(set(nodes.keys()) | set(irc_client.nodes.keys()))
-        out['total']['DSCM'] = out['http']['DSCM'] + out['irc']['DSCM']
-        out['total']['DS'] = out['total']['total'] - out['total']['DSCM']
-        self.set_header('Content-Type', 'text/plain')
+        self.set_header('Content-Type', 'application/json')
         self.write(ujson.dumps(out, indent=2))
 
 
@@ -114,25 +96,14 @@ def expire_nodes():
                 del last_seen[steamid]
 
 
-@asyncio.coroutine
-def publish_in_irc():
-    while True:
-        yield from asyncio.sleep(60*3 + 10)
-        logger.info('Publishing {} nodes to IRC'.format(len(nodes)))
-        irc_client.publish_nodes(nodes.values())
-
-
 def main():
-    global irc_client
     logging.basicConfig(level=logging.DEBUG)
     AsyncIOMainLoop().install()
     event_loop = asyncio.get_event_loop()
     app = make_app()
     http_server = tornado.httpserver.HTTPServer(app, no_keep_alive=True)
     http_server.listen(8811)
-    irc_client = irc.Client(event_loop)
     asyncio.async(expire_nodes())
-    asyncio.async(publish_in_irc())
     event_loop.run_forever()
 
 
