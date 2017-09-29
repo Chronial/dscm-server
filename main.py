@@ -15,11 +15,14 @@ logger = logging.getLogger(__name__)
 
 nodes = dict()
 last_seen = dict()
+online_ids = dict()
 
 DSCM_NODE_TTL = timedelta(minutes=2)
 # Remember non-DSCM nodes for longer as they might not have quit but just lost
 # all connections to DSCM nodes
 DS_NODE_TTL = timedelta(minutes=10)
+
+ONLINE_IDS_TTL = timedelta(minutes=5)
 
 
 list_cache = None
@@ -51,10 +54,16 @@ class ListHandler(tornado.web.RequestHandler):
 
 class StatusHandler(tornado.web.RequestHandler):
     def get(self):
+        extra_online = (set(online_ids.keys()) -
+                        set(int(x, 16) for x in nodes.keys()))
+
         out = {
-            'total': len(nodes),
+            'total_nodes': len(nodes),
             'DSCM': sum(1 for n in nodes.values() if isinstance(n, DSCMNode)),
             'DS': sum(1 for n in nodes.values() if isinstance(n, DSNode)),
+            'extra_online': len(extra_online),
+            'online_ids': len(online_ids),
+            'total_known': len(extra_online) + len(nodes),
         }
         self.set_header('Content-Type', 'application/json')
         self.write(ujson.dumps(out, indent=2))
@@ -73,6 +82,8 @@ class StoreHandler(tornado.web.RequestHandler):
                 node = nodes[node.steamid]._replace(**node._asdict())
             nodes[node.steamid] = node
             last_seen[node.steamid] = now
+
+        online_ids.update((x, now) for x in data.get('online_ids', []))
         self.set_header('Connection', 'close')
 
 
@@ -94,6 +105,10 @@ def expire_nodes():
             if now - last > ttl:
                 del nodes[steamid]
                 del last_seen[steamid]
+
+        for steamid, last in list(online_ids.items()):
+            if now - last > ONLINE_IDS_TTL:
+                del online_ids[steamid]
 
 
 def main():
