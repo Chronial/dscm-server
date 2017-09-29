@@ -83,6 +83,8 @@ class StoreHandler(tornado.web.RequestHandler):
         now = datetime.utcnow()
         data = ujson.loads(self.request.body.decode('utf-8'))
         user_agent = self.request.headers.get('User-Agent', 'old')
+        if user_agent == 'old' and 'online_ids' in data:
+            user_agent = 'DSCM/2017.09.28.17'
         self_node = DSCMNode(**data['self'], dscm_version=user_agent)
         nodes[self_node.steamid] = self_node
         last_seen[self_node.steamid] = now
