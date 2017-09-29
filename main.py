@@ -24,6 +24,10 @@ DS_NODE_TTL = timedelta(minutes=10)
 
 ONLINE_IDS_TTL = timedelta(minutes=5)
 
+watch_queue = []
+watch_queue_index = 0
+watches_handed_out = []
+
 
 list_cache = None
 LIST_TTL = timedelta(seconds=10)
@@ -87,12 +91,49 @@ class StoreHandler(tornado.web.RequestHandler):
         self.set_header('Connection', 'close')
 
 
+class WatchHandler(tornado.web.RequestHandler):
+    def get(self):
+        global watch_queue, watch_queue_index
+        to_watch = watch_queue[watch_queue_index]
+        watch_queue_index = (watch_queue_index + 1) % len(watch_queue)
+
+        out = {
+            'watch': "{:016x}".format(to_watch)
+        }
+        self.set_header('Content-Type', 'application/json')
+        self.write(ujson.dumps(out, indent=2))
+
+
 def make_app():
     return tornado.web.Application([
         (r"/list", ListHandler),
         (r"/store", StoreHandler),
         (r"/status", StatusHandler),
+        (r"/get_watch", WatchHandler),
     ])
+
+
+@asyncio.coroutine
+def generate_watch_queue():
+    global watch_queue, watch_queue_index
+    yield from asyncio.sleep(5)
+    while True:
+        yield from asyncio.sleep(10)
+        extra_online = (set(online_ids.keys()) -
+                        set(int(x, 16) for x in nodes.keys()))
+
+        del watches_handed_out[:-2*len(extra_online)]
+        handed_out_dict = {v: i for i, v in enumerate(watches_handed_out)}
+
+        # prefer ids that:
+        # * have never been handed out or have been handed out earlier (=longer ago)
+        # * have been seen more recently
+        watch_weights = [
+            (handed_out_dict.get(k, -1), -online_ids[k].timestamp(), k) for k in extra_online]
+        watch_weights.sort()
+
+        watch_queue = [x[2] for x in watch_weights]
+        watch_queue_index = 0
 
 
 @asyncio.coroutine
@@ -119,6 +160,7 @@ def main():
     http_server = tornado.httpserver.HTTPServer(app, no_keep_alive=True)
     http_server.listen(8811)
     asyncio.async(expire_nodes())
+    asyncio.async(generate_watch_queue())
     event_loop.run_forever()
 
 
