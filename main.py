@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import gzip
+from collections import Counter
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -61,7 +62,11 @@ class StatusHandler(tornado.web.RequestHandler):
         extra_online = (set(online_ids.keys()) -
                         set(int(x, 16) for x in nodes.keys()))
 
+        versions = Counter(x.dscm_version for x in nodes.values()
+                           if isinstance(x, DSCMNode))
+
         out = {
+            'versions': dict(versions),
             'total_nodes': len(nodes),
             'DSCM': sum(1 for n in nodes.values() if isinstance(n, DSCMNode)),
             'DS': sum(1 for n in nodes.values() if isinstance(n, DSNode)),
@@ -77,7 +82,8 @@ class StoreHandler(tornado.web.RequestHandler):
     def post(self):
         now = datetime.utcnow()
         data = ujson.loads(self.request.body.decode('utf-8'))
-        self_node = DSCMNode(**data['self'])
+        user_agent = self.request.headers.get('User-Agent', 'old')
+        self_node = DSCMNode(**data['self'], dscm_version=user_agent)
         nodes[self_node.steamid] = self_node
         last_seen[self_node.steamid] = now
         for node_dict in data['nodes']:
