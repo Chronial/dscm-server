@@ -104,6 +104,7 @@ class WatchHandler(tornado.web.RequestHandler):
         global watch_queue, watch_queue_index
         to_watch = watch_queue[watch_queue_index]
         watch_queue_index = (watch_queue_index + 1) % len(watch_queue)
+        watches_handed_out.append(to_watch)
 
         out = {
             'watch': "{:016x}".format(to_watch)
